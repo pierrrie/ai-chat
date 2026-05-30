@@ -1,0 +1,616 @@
+.draxter-aichat-root {
+  --drax-accent: #2563eb;
+  --drax-brand-500: var(--drax-accent, #6366f1);
+  --drax-brand-600: var(--drax-accent, #4f46e5);
+  --drax-brand-700: var(--drax-accent, #4338ca);
+  --drax-fab-h-offset: 24px;
+  --drax-fab-v-offset: 24px;
+  --drax-fab-bg: var(--drax-accent, #4f46e5);
+  position: fixed !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 2147483000 !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  overflow: visible !important;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.draxter-aichat-root .draxter-aichat-fab,
+.draxter-aichat-root .draxter-aichat-panel {
+  pointer-events: auto;
+}
+
+/* Сброс стилей шаблона Битрикс для кнопки FAB */
+button.draxter-aichat-fab,
+.draxter-aichat-root button.draxter-aichat-fab {
+  position: fixed !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  z-index: 2147483003 !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: auto !important;
+  min-width: 3.5rem !important;
+  max-width: calc(100vw - 2rem);
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid color-mix(in srgb, var(--drax-fab-bg, #4f46e5) 75%, #0f172a) !important;
+  border-radius: 9999px !important;
+  background: var(--drax-fab-bg, var(--drax-brand-600, #4f46e5)) !important;
+  background-color: var(--drax-fab-bg, var(--drax-brand-600, #4f46e5)) !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  padding: 0.375rem 1rem 0.375rem 0.375rem !important;
+  cursor: pointer;
+  box-shadow: 0 8px 28px rgba(79, 70, 229, 0.5), 0 2px 8px rgba(15, 23, 42, 0.15);
+  animation: drax-fab-pulse 2.4s ease-out infinite;
+  transition: width 0.2s ease, height 0.2s ease, padding 0.2s ease, background 0.2s ease;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.2;
+  text-decoration: none !important;
+  box-sizing: border-box;
+}
+
+button.draxter-aichat-fab:hover,
+.draxter-aichat-root button.draxter-aichat-fab:hover {
+  background: var(--drax-fab-bg, var(--drax-brand-600, #4f46e5)) !important;
+  background-color: var(--drax-fab-bg, var(--drax-brand-600, #4f46e5)) !important;
+  filter: brightness(0.9);
+  color: #ffffff !important;
+}
+
+.draxter-aichat-fab-avatar {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+}
+
+button.draxter-aichat-fab .draxter-aichat-fab-label,
+button.draxter-aichat-fab .draxter-aichat-fab-label strong,
+button.draxter-aichat-fab .draxter-aichat-fab-sublabel {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+  text-shadow: 0 1px 2px rgba(30, 27, 75, 0.35);
+}
+
+.draxter-aichat-fab-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  line-height: 1.2;
+  color: #ffffff !important;
+  white-space: nowrap;
+}
+
+.draxter-aichat-fab-label strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff !important;
+}
+
+.draxter-aichat-fab-sublabel {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: #f8fafc !important;
+}
+
+button.draxter-aichat-fab.draxter-aichat-fab--open,
+.draxter-aichat-fab--open {
+  width: 3.5rem !important;
+  height: 3.5rem !important;
+  min-width: 3.5rem !important;
+  max-width: 3.5rem !important;
+  padding: 0 !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0 !important;
+  background: #1e293b !important;
+  background-color: #1e293b !important;
+  border-color: #0f172a !important;
+  color: #ffffff !important;
+  animation: none;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.35);
+}
+
+button.draxter-aichat-fab.draxter-aichat-fab--open:hover {
+  background: #334155 !important;
+  background-color: #334155 !important;
+}
+
+.draxter-aichat-fab--open .draxter-aichat-fab-label,
+.draxter-aichat-fab--open .draxter-aichat-fab-avatar {
+  display: none !important;
+}
+
+.draxter-aichat-fab-icon {
+  display: block;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+button.draxter-aichat-fab.draxter-aichat-fab--open .draxter-aichat-fab-icon,
+.draxter-aichat-fab--open .draxter-aichat-fab-icon {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+.draxter-aichat-panel {
+  position: fixed !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  z-index: 2147483002 !important;
+  display: flex;
+  flex-direction: column;
+  width: min(100vw - 2rem, 400px);
+  height: min(70vh, 560px);
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(79, 70, 229, 0.25);
+  transform-origin: bottom right;
+  animation: drax-chat-open 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.draxter-aichat-root[data-fab-h="right"] button.draxter-aichat-fab {
+  right: var(--drax-fab-h-offset, 24px) !important;
+}
+
+.draxter-aichat-root[data-fab-h="left"] button.draxter-aichat-fab {
+  left: var(--drax-fab-h-offset, 24px) !important;
+}
+
+.draxter-aichat-root[data-fab-v="bottom"] button.draxter-aichat-fab {
+  bottom: var(--drax-fab-v-offset, 24px) !important;
+}
+
+.draxter-aichat-root[data-fab-v="top"] button.draxter-aichat-fab {
+  top: var(--drax-fab-v-offset, 24px) !important;
+}
+
+.draxter-aichat-root[data-fab-h="right"]:not(.draxter-aichat-root--embedded) .draxter-aichat-panel {
+  right: var(--drax-fab-h-offset, 24px) !important;
+}
+
+.draxter-aichat-root[data-fab-h="left"]:not(.draxter-aichat-root--embedded) .draxter-aichat-panel {
+  left: var(--drax-fab-h-offset, 24px) !important;
+}
+
+.draxter-aichat-root[data-fab-v="bottom"]:not(.draxter-aichat-root--embedded) .draxter-aichat-panel {
+  bottom: calc(var(--drax-fab-v-offset, 24px) + 3.5rem + 0.75rem) !important;
+  transform-origin: bottom right;
+}
+
+.draxter-aichat-root[data-fab-v="top"]:not(.draxter-aichat-root--embedded) .draxter-aichat-panel {
+  top: calc(var(--drax-fab-v-offset, 24px) + 3.5rem + 0.75rem) !important;
+  transform-origin: top right;
+}
+
+.draxter-aichat-root[data-fab-h="left"][data-fab-v="bottom"]:not(.draxter-aichat-root--embedded) .draxter-aichat-panel {
+  transform-origin: bottom left;
+}
+
+.draxter-aichat-root[data-fab-h="left"][data-fab-v="top"]:not(.draxter-aichat-root--embedded) .draxter-aichat-panel {
+  transform-origin: top left;
+}
+
+.draxter-aichat-root[data-fab-h="right"][data-fab-v="top"]:not(.draxter-aichat-root--embedded) .draxter-aichat-panel {
+  transform-origin: top right;
+}
+
+.draxter-aichat-root--embedded .draxter-aichat-panel {
+  position: relative;
+  bottom: auto;
+  right: auto;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  animation: none;
+}
+
+.draxter-aichat-panel--closing {
+  animation: drax-chat-close 0.28s ease forwards;
+  pointer-events: none;
+}
+
+.draxter-aichat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  background: linear-gradient(135deg, var(--drax-accent, #4f46e5) 0%, #7c3aed 100%);
+  border-bottom: none;
+  flex-shrink: 0;
+}
+
+.draxter-aichat-header-main {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.draxter-aichat-header-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.draxter-aichat-header-avatar {
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  flex-shrink: 0;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  box-sizing: border-box;
+}
+
+.draxter-aichat-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.draxter-aichat-status {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0.125rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.2;
+}
+
+.draxter-aichat-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35);
+  animation: drax-online-blink 1.5s ease-in-out infinite;
+}
+
+@keyframes drax-online-blink {
+  0%,
+  100% {
+    opacity: 1;
+    background: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.4);
+  }
+  50% {
+    opacity: 0.35;
+    background: #4ade80;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+  }
+}
+
+.draxter-aichat-status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draxter-aichat-close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border-radius: 9999px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.draxter-aichat-close:hover {
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.draxter-aichat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  background: #f8fafc;
+  scrollbar-width: thin;
+}
+
+.draxter-aichat-msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.draxter-aichat-msg--user {
+  justify-content: flex-end;
+}
+
+.draxter-aichat-bubble {
+  max-width: 88%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 1rem;
+  line-height: 1.5;
+  font-size: 0.875rem;
+}
+
+.draxter-aichat-bubble--bot {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  border-bottom-left-radius: 0.25rem;
+}
+
+.draxter-aichat-bubble--user {
+  background: var(--drax-brand-600);
+  color: #fff;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.draxter-aichat-bubble a {
+  color: var(--drax-brand-600);
+  font-weight: 500;
+}
+
+.draxter-aichat-bubble--user a {
+  color: #fff;
+}
+
+.draxter-aichat-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.625rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.draxter-aichat-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.draxter-aichat-voice-status {
+  margin: 0;
+  width: 100%;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--drax-brand-600, #4f46e5);
+  text-align: center;
+}
+
+.draxter-aichat-voice-status[hidden] {
+  display: none !important;
+}
+
+.draxter-aichat-input {
+  flex: 1;
+  height: 2.25rem;
+  min-height: 2.25rem;
+  max-height: 5rem;
+  resize: none;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.4375rem 0.75rem;
+  line-height: 1.35;
+  font: inherit;
+  background: #f8fafc;
+  overflow-y: auto;
+}
+
+.draxter-aichat-input:focus {
+  outline: none;
+  border-color: var(--drax-brand-500);
+  background: #fff;
+}
+
+.draxter-aichat-send {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background: var(--drax-brand-600);
+  color: #fff;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.draxter-aichat-send:hover:not(:disabled) {
+  background: var(--drax-brand-700);
+}
+
+.draxter-aichat-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.draxter-aichat-error {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.75rem;
+}
+
+.draxter-aichat-avatar {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #1e293b, #020617);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.draxter-aichat-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9999px;
+  display: block;
+}
+
+.draxter-aichat-mic {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  background: #f8fafc;
+  cursor: pointer;
+  color: var(--drax-brand-600, #4f46e5);
+  line-height: 0;
+}
+
+.draxter-aichat-mic svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  display: block;
+}
+
+.draxter-aichat-mic:hover:not(:disabled) {
+  border-color: var(--drax-brand-500);
+}
+
+.draxter-aichat-mic--active {
+  background: #fef2f2;
+  border-color: #f87171;
+  animation: drax-mic-pulse 1s ease-in-out infinite;
+}
+
+.draxter-aichat-mic:disabled,
+.draxter-aichat-mic--disabled {
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.draxter-aichat-mic--disabled:hover {
+  border-color: #cbd5e1;
+}
+
+.draxter-aichat-tts-btn {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid color-mix(in srgb, var(--drax-accent, #2563eb) 35%, #cbd5e1);
+  border-radius: 9999px;
+  background: #fff;
+  color: var(--drax-accent, #2563eb);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.draxter-aichat-tts-btn:hover {
+  background: color-mix(in srgb, var(--drax-accent, #2563eb) 8%, #fff);
+}
+
+.draxter-aichat-audio-wrap {
+  margin-top: 0.5rem;
+}
+
+.draxter-aichat-audio-wrap audio {
+  width: 100%;
+  max-width: 260px;
+  height: 2rem;
+}
+
+@keyframes drax-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(248, 113, 113, 0); }
+}
+
+.draxter-aichat-bubble--bot.draxter-aichat-typing {
+  min-width: 3.5rem;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.draxter-aichat-typing span {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0 2px;
+  border-radius: 9999px;
+  background: #94a3b8;
+  animation: drax-typing 1s infinite;
+}
+
+.draxter-aichat-typing span:nth-child(2) { animation-delay: 0.15s; }
+.draxter-aichat-typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes drax-chat-open {
+  from { opacity: 0; transform: scale(0.88) translateY(16px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes drax-chat-close {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.92) translateY(12px); }
+}
+
+@keyframes drax-fab-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.45); }
+  70% { box-shadow: 0 0 0 14px rgba(99, 102, 241, 0); }
+}
+
+@keyframes drax-typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}

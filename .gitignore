@@ -1,0 +1,28 @@
+# Secrets and local deploy config
+config/aichat.config.php
+deploy/deploy.config.ps1
+.env
+.env.*
+!.env.example
+
+# Deploy dependencies (install locally: npm install in deploy/)
+deploy/node_modules/
+deploy/package-lock.json
+
+# Portable PHP bundle (download via php-dev/start.ps1 or install PHP system-wide)
+tools/php/
+
+# Runtime / generated
+health-response.txt
+/upload/draxter_aichat_logs/
+/upload/draxter_aichat_ratelimit/
+upload/
+
+# OS and editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Logs
+*.log
