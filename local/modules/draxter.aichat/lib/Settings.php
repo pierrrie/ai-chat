@@ -71,10 +71,12 @@ class Settings
         'VOICE_REPLY_ENABLED' => ['voice', 'reply_enabled', 'bool'],
         'VOICE_STT_PROVIDER' => ['voice', 'stt_provider'],
         'VOICE_GEMINI_STT_MODEL' => ['voice', 'gemini_stt_model'],
+        'VOICE_WHISPER_API_KEY' => ['voice', 'whisper_api_key'],
+        'VOICE_WHISPER_BASE_URL' => ['voice', 'whisper_base_url'],
+        'VOICE_WHISPER_MODEL' => ['voice', 'whisper_model'],
+        'VOICE_CUSTOM_STT_PROVIDERS' => ['voice', 'custom_stt_providers'],
+        'VOICE_CUSTOM_TTS_PROVIDERS' => ['voice', 'custom_tts_providers'],
         'VOICE_TTS_PROVIDER' => ['voice', 'tts_provider'],
-        'YANDEX_TTS_API_KEY' => ['voice', 'yandex_tts_api_key'],
-        'YANDEX_TTS_FOLDER_ID' => ['voice', 'yandex_tts_folder_id'],
-        'YANDEX_TTS_VOICE' => ['voice', 'yandex_tts_voice'],
         'CRM_B24_FIELD_MAP' => ['crm', 'b24_field_map'],
         'CRM_LOCAL_FIELD_MAP' => ['crm', 'local_field_map'],
         'CRM_LOCAL_ENABLED' => ['crm', 'local_enabled', 'bool'],
@@ -664,14 +666,60 @@ class Settings
     public static function voiceSttProvider(): string
     {
         $p = strtolower(trim(self::get('VOICE_STT_PROVIDER', 'auto')));
-        if ($p === 'openai') {
-            return 'gemini';
+        if (in_array($p, ['openai', 'openai_whisper', 'yandex'], true)) {
+            return 'auto';
         }
-        if (in_array($p, ['auto', 'gemini'], true)) {
+        if (in_array($p, ['auto', 'browser', 'gemini'], true)) {
+            return $p;
+        }
+        if (CustomVoiceProviders::getSttById($p) !== null) {
             return $p;
         }
 
         return 'auto';
+    }
+
+    /**
+     * Фактический STT: browser | gemini | custom:{id}
+     *
+     * @throws \RuntimeException если выбран провайдер без ключей
+     */
+    public static function resolveVoiceSttProvider(): string
+    {
+        $pref = self::voiceSttProvider();
+        if ($pref === 'browser') {
+            return 'browser';
+        }
+        if ($pref === 'gemini') {
+            if (trim(Config::get('GEMINI_API_KEY', '')) === '') {
+                throw new \RuntimeException('Нужен GEMINI_API_KEY для распознавания речи (Gemini STT)');
+            }
+
+            return 'gemini';
+        }
+        if ($pref !== 'auto' && CustomVoiceProviders::getSttById($pref) !== null) {
+            return 'custom:' . $pref;
+        }
+
+        if (trim(Config::get('GEMINI_API_KEY', '')) !== '') {
+            return 'gemini';
+        }
+
+        return 'browser';
+    }
+
+    public static function voiceWhisperBaseUrl(): string
+    {
+        $url = rtrim(trim(self::get('VOICE_WHISPER_BASE_URL', 'https://api.openai.com/v1')), '/');
+
+        return $url !== '' ? $url : 'https://api.openai.com/v1';
+    }
+
+    public static function voiceWhisperModel(): string
+    {
+        $model = trim(self::get('VOICE_WHISPER_MODEL', 'whisper-1'));
+
+        return $model !== '' ? $model : 'whisper-1';
     }
 
     public static function voiceMaxSeconds(): int
@@ -699,8 +747,30 @@ class Settings
     public static function voiceTtsProvider(): string
     {
         $p = strtolower(trim(self::get('VOICE_TTS_PROVIDER', 'browser')));
+        if ($p === 'yandex') {
+            return 'browser';
+        }
         if ($p === 'browser') {
             return 'browser';
+        }
+        if (CustomVoiceProviders::getTtsById($p) !== null) {
+            return $p;
+        }
+
+        return 'browser';
+    }
+
+    /**
+     * @throws \RuntimeException если выбран провайдер без ключей
+     */
+    public static function resolveVoiceTtsProvider(): string
+    {
+        $pref = self::voiceTtsProvider();
+        if ($pref === 'browser') {
+            return 'browser';
+        }
+        if (CustomVoiceProviders::getTtsById($pref) !== null) {
+            return 'custom:' . $pref;
         }
 
         return 'browser';
@@ -725,7 +795,8 @@ class Settings
         if ($raw === '') {
             return [];
         }
-        $parts = preg_split('/[,;\s]+/', $raw) ?: [];
+        $raw = str_replace(["\r\n", "\r"], "\n", $raw);
+        $parts = preg_split('/[,;\n]+/u', $raw) ?: [];
 
         return array_values(array_filter(array_map('trim', $parts), static fn($e) => $e !== '' && strpos($e, '@') !== false));
     }

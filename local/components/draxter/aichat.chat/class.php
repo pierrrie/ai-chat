@@ -58,6 +58,11 @@ class DraxterAichatChatComponent extends CBitrixComponent
         $this->arResult['VOICE_MAX_SECONDS'] = (string)Settings::voiceMaxSeconds();
         $this->arResult['VOICE_TTS_MAX_CHARS'] = (string)Settings::voiceTtsMaxChars();
         $this->arResult['VOICE_TTS_RATE'] = (string)Settings::voiceTtsRate();
+        try {
+            $this->arResult['VOICE_STT'] = Settings::resolveVoiceSttProvider();
+        } catch (\Throwable $e) {
+            $this->arResult['VOICE_STT'] = Settings::voiceSttProvider() === 'browser' ? 'browser' : 'gemini';
+        }
         $this->arResult['STATUS_LINE'] = Settings::widgetStatusLine();
         $this->arResult['YM_ENABLED'] = Settings::isYandexMetrikaEnabled() ? '1' : '0';
         $this->arResult['YM_COUNTER'] = (string)Settings::yandexMetrikaCounterId();

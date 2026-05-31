@@ -110,6 +110,8 @@
     const voiceMaxSeconds = Math.max(5, parseInt(root.dataset.voiceMaxSeconds || "60", 10) || 60);
     const voiceTtsMaxChars = Math.max(100, parseInt(root.dataset.voiceTtsMaxChars || "1500", 10) || 1500);
     const ttsSpeechRate = Math.max(0.5, Math.min(2, parseFloat(String(root.dataset.voiceTtsRate || "1.25").replace(",", ".")) || 1.25));
+    const voiceStt = (root.dataset.voiceStt || "gemini").toLowerCase();
+    const useBrowserStt = voiceStt === "browser";
     const TTS_CHUNK_SIZE = 280;
     let ttsSpeakGen = 0;
     let activeTtsAudio = null;
@@ -258,6 +260,42 @@
     let messages = [{ id: "welcome", role: "assistant", content: welcomeText }];
     let error = null;
 
+    function userFacingError(message, code) {
+      const byCode = {
+        QUOTA_EXCEEDED:
+          "Сейчас консультант перегружен. Подождите минуту и попробуйте снова, или напишите текстом.",
+        API_DISABLED: "Консультант временно недоступен. Попробуйте позже.",
+        INVALID_KEY: "Консультант временно недоступен. Попробуйте позже.",
+        STT_ERROR:
+          "Не удалось распознать речь. Попробуйте ещё раз или введите сообщение текстом.",
+        TTS_ERROR: "Озвучка временно недоступна.",
+        LLM_API_ERROR:
+          "Сейчас консультант перегружен. Подождите минуту и попробуйте снова, или напишите текстом.",
+      };
+      if (code && byCode[code]) return byCode[code];
+      const msg = String(message || "");
+      if (
+        /лимит|квот|gemini|429|quota|исчерпан|aistudio|apikey|rate.?limit|google ai/i.test(
+          msg
+        )
+      ) {
+        return byCode.QUOTA_EXCEEDED;
+      }
+      if (/stt|распозна|transcri/i.test(msg)) return byCode.STT_ERROR;
+      if (/tts|озвуч|http error/i.test(msg)) return byCode.TTS_ERROR;
+      if (/api.?ключ|invalid.*key|настройках модуля/i.test(msg)) {
+        return byCode.INVALID_KEY;
+      }
+      if (
+        msg.indexOf("Пустой ответ") >= 0 ||
+        msg.indexOf("Ответ слишком") >= 0 ||
+        msg.indexOf("не успел ответить") >= 0
+      ) {
+        return msg;
+      }
+      return byCode.ERROR || "Не удалось получить ответ. Попробуйте ещё раз.";
+    }
+
     let fab = null;
     let panel = null;
     let listEl = null;
@@ -270,6 +308,326 @@
     let voicePhase = "idle";
     let voiceStatusEl = null;
     let recordStartedAt = 0;
+    let speechRecognition = null;
+    let browserSttParts = [];
+    let browserSttInterim = "";
+    let browserSttLastError = "";
+    let browserSttStopTimer = null;
+    let browserMicStream = null;
+    let browserSttRestartTimer = null;
+    let browserSttRestartCount = 0;
+    let browserSttLangIndex = 0;
+    let browserSttStopping = false;
+    let browserSttEmptyResultEvents = 0;
+    const browserSttLangs = ["ru-RU", "ru"];
+
+    function isEdgeBrowser() {
+      const ua = navigator.userAgent || "";
+      return /Edg\//.test(ua);
+    }
+
+    function getSpeechRecognitionCtor() {
+      return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    }
+
+    function releaseBrowserMic() {
+      if (browserMicStream) {
+        browserMicStream.getTracks().forEach(function (t) {
+          t.stop();
+        });
+        browserMicStream = null;
+      }
+    }
+
+    function buildBrowserSttText() {
+      const finalText = browserSttParts.join(" ").trim();
+      if (finalText) return finalText;
+      return (browserSttInterim || "").trim();
+    }
+
+    function browserSttEmptyError() {
+      const err = browserSttLastError;
+      if (err === "not-allowed") {
+        return "Нет доступа к микрофону. Разрешите доступ в настройках браузера.";
+      }
+      if (err === "edge-empty-results") {
+        return (
+          "Edge: распознавание не вернуло текст (служба Microsoft). " +
+          "Включите «Распознавание речи в сети» (edge://settings/languages), перезапустите браузер. " +
+          "Режим «Браузер» стабилен в Chrome; в Edge часто недоступен из‑за ограничений Microsoft."
+        );
+      }
+      if (err === "network") {
+        if (isEdgeBrowser()) {
+          return (
+            "Edge: не удалось подключиться к службе распознавания речи Microsoft. " +
+            "Если раньше микрофон работал — скорее всего был режим «Авто» или «Только Gemini» (голос через Google, не через браузер). " +
+            "Переключите STT на вкладке «Голос» модуля. Либо включите «Распознавание речи в сети» (edge://settings/languages)."
+          );
+        }
+        return "Нет связи с сервисом распознавания (нужен интернет). Проверьте подключение и попробуйте снова.";
+      }
+      if (err === "language-not-supported") {
+        return "Браузер не поддерживает русский язык для распознавания. Обновите браузер или выберите режим «Только Gemini» на вкладке «Голос».";
+      }
+      if (err === "audio-capture") {
+        return "Микрофон недоступен. Проверьте подключение и разрешения браузера.";
+      }
+      if (err === "service-not-allowed") {
+        return "Распознавание речи заблокировано браузером (нужен HTTPS).";
+      }
+      if (err === "no-speech" || err === "no-match") {
+        return "Речь не распознана. Проверьте микрофон и говорите чётче, затем отпустите кнопку.";
+      }
+      if (err) {
+        return "Не удалось распознать речь (" + err + "). Проверьте микрофон и вкладку «Голос».";
+      }
+      return "Не удалось распознать речь. Проверьте микрофон и настройки STT на вкладке «Голос» модуля.";
+    }
+
+    function applyBrowserSttResults(rec) {
+      if (!rec || !rec.results) return;
+      const finals = [];
+      let interim = "";
+      for (let i = 0; i < rec.results.length; i++) {
+        const part = (rec.results[i][0] && rec.results[i][0].transcript) || "";
+        const t = part.trim();
+        if (!t) continue;
+        if (rec.results[i].isFinal) finals.push(t);
+        else interim = t;
+      }
+      browserSttParts = finals;
+      browserSttInterim = interim;
+    }
+
+    function ingestBrowserSttResult(rec) {
+      applyBrowserSttResults(rec);
+      const text = buildBrowserSttText();
+      if (text) {
+        browserSttLastError = "";
+        return text;
+      }
+      if (rec && rec.results) {
+        browserSttEmptyResultEvents++;
+      }
+      return "";
+    }
+
+    function finalizeBrowserSttEmptyError() {
+      if (browserSttLastError) return;
+      if (!isEdgeBrowser()) return;
+      if (browserSttEmptyResultEvents > 0) {
+        browserSttLastError = "edge-empty-results";
+      }
+    }
+
+    function clearBrowserSttRestartTimer() {
+      if (browserSttRestartTimer) {
+        clearTimeout(browserSttRestartTimer);
+        browserSttRestartTimer = null;
+      }
+    }
+
+    function abortBrowserSttRec() {
+      if (!speechRecognition) return;
+      try {
+        speechRecognition.onend = null;
+        speechRecognition.onerror = null;
+        speechRecognition.onresult = null;
+        speechRecognition.abort();
+      } catch {}
+      speechRecognition = null;
+    }
+
+    function scheduleBrowserSttContinue(rec, delayMs, forceRespawn) {
+      clearBrowserSttRestartTimer();
+      if (!recording) return;
+      if (browserSttRestartCount >= 8) return;
+      browserSttRestartTimer = setTimeout(function () {
+        browserSttRestartTimer = null;
+        if (!recording) return;
+        if (browserSttLastError === "network" || browserSttLastError === "language-not-supported") {
+          return;
+        }
+        browserSttRestartCount++;
+        if (forceRespawn || !rec || speechRecognition !== rec) {
+          spawnBrowserSttRec(false);
+          return;
+        }
+        try {
+          rec.start();
+        } catch {
+          spawnBrowserSttRec(false);
+        }
+      }, delayMs);
+    }
+
+    function bindBrowserSttHandlers(rec) {
+      rec.onresult = function () {
+        ingestBrowserSttResult(rec);
+      };
+      rec.onerror = function (e) {
+        const code = e && e.error ? String(e.error) : "unknown";
+        if (code === "aborted") return;
+        browserSttLastError = code;
+        if (code === "language-not-supported" && browserSttLangIndex + 1 < browserSttLangs.length) {
+          browserSttLangIndex++;
+          spawnBrowserSttRec(false);
+        }
+      };
+      rec.onnomatch = function () {
+        if (!browserSttLastError) browserSttLastError = "no-match";
+      };
+      rec.onend = function () {
+        if (!recording || speechRecognition !== rec) return;
+        if (browserSttLastError === "network" || browserSttLastError === "language-not-supported") {
+          return;
+        }
+        scheduleBrowserSttContinue(rec, 300, false);
+      };
+    }
+
+    function spawnBrowserSttRec(resetLang) {
+      const Ctor = getSpeechRecognitionCtor();
+      if (!Ctor) return false;
+      if (resetLang !== false) {
+        browserSttLangIndex = 0;
+      }
+      abortBrowserSttRec();
+      const rec = new Ctor();
+      speechRecognition = rec;
+      rec.lang = browserSttLangs[browserSttLangIndex] || "ru-RU";
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      bindBrowserSttHandlers(rec);
+      try {
+        rec.start();
+        return true;
+      } catch (err) {
+        speechRecognition = null;
+        if (browserSttRestartCount < 3) {
+          scheduleBrowserSttContinue(null, 600, true);
+          return true;
+        }
+        return false;
+      }
+    }
+
+    function startBrowserStt() {
+      browserSttParts = [];
+      browserSttInterim = "";
+      browserSttLastError = "";
+      browserSttEmptyResultEvents = 0;
+      browserSttRestartCount = 0;
+      browserSttLangIndex = 0;
+      clearBrowserSttRestartTimer();
+      return spawnBrowserSttRec(true);
+    }
+
+    function stopBrowserStt() {
+      return new Promise(function (resolve) {
+        clearBrowserSttRestartTimer();
+        browserSttStopping = true;
+        if (!speechRecognition) {
+          browserSttStopping = false;
+          resolve(buildBrowserSttText());
+          return;
+        }
+        const rec = speechRecognition;
+        speechRecognition = null;
+        let done = false;
+        const finish = function () {
+          if (done) return;
+          done = true;
+          browserSttStopping = false;
+          ingestBrowserSttResult(rec);
+          const text = buildBrowserSttText();
+          if (text) browserSttLastError = "";
+          else finalizeBrowserSttEmptyError();
+          resolve(text);
+        };
+        rec.onresult = function () {
+          const text = ingestBrowserSttResult(rec);
+          if (text) {
+            setTimeout(finish, 120);
+          }
+        };
+        rec.onerror = function (e) {
+          const code = e && e.error ? String(e.error) : "unknown";
+          if (code !== "aborted") browserSttLastError = code;
+        };
+        rec.onend = function () {
+          setTimeout(finish, isEdgeBrowser() ? 600 : 300);
+        };
+        try {
+          rec.stop();
+        } catch {
+          try {
+            rec.abort();
+          } catch {}
+          finish();
+          return;
+        }
+        setTimeout(finish, isEdgeBrowser() ? 4500 : 3500);
+      });
+    }
+
+    let browserMicWarmed = false;
+
+    function warmBrowserMicOnce() {
+      if (browserMicWarmed || !useBrowserStt || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return;
+      }
+      browserMicWarmed = true;
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then(function (stream) {
+          stream.getTracks().forEach(function (t) {
+            t.stop();
+          });
+        })
+        .catch(function () {});
+    }
+
+    function beginBrowserRecordingUi() {
+      recording = true;
+      voicePhase = "recording";
+      recordStartedAt = Date.now();
+      const maxMs = voiceMaxSeconds * 1000;
+      browserSttStopTimer = setTimeout(function () {
+        stopBrowserRecording();
+      }, maxMs);
+      setVoiceStatus("Говорите… Нажмите микрофон ещё раз, чтобы отправить");
+      if (micBtn) {
+        micBtn.classList.add("draxter-aichat-mic--active");
+        micBtn.setAttribute("aria-label", "Остановить запись и отправить");
+      }
+      updateSendButton();
+    }
+
+    async function startBrowserRecordingFromGesture() {
+      if (loading || recording) return;
+      if (!voiceEnabled) {
+        error =
+          "Голосовой ввод отключён. Включите «Голосовой ввод» в настройках модуля (вкладка «Голос»).";
+        renderMessages();
+        return;
+      }
+      if (!getSpeechRecognitionCtor()) {
+        error =
+          "Браузер не поддерживает распознавание речи. Используйте Chrome по HTTPS, либо режим «Только Gemini» на вкладке «Голос».";
+        renderMessages();
+        return;
+      }
+      error = null;
+      if (!startBrowserStt()) {
+        error = "Не удалось запустить распознавание в браузере";
+        renderMessages();
+        return;
+      }
+      beginBrowserRecordingUi();
+    }
 
     function setVoiceStatus(text) {
       if (!voiceStatusEl) return;
@@ -830,7 +1188,7 @@
 
         if (data) {
           if (!res.ok) {
-            const msg = data.error || "Озвучка недоступна (HTTP " + res.status + ").";
+            const msg = userFacingError(data.error, data.code) || "Озвучка временно недоступна.";
             if (await speakWithBrowserTts(plain, activated)) {
               consumeTtsGesture();
               const idx = messages.findIndex(function (m) {
@@ -879,7 +1237,7 @@
             return;
           }
           if (data.error) {
-            throw new Error(data.error);
+            throw new Error(userFacingError(data.error, data.code));
           }
         }
 
@@ -998,11 +1356,14 @@
           const data = await res.json().catch(() => ({}));
           if (res.status === 504) {
             throw new Error(
+            userFacingError(
               data.error ||
-                "Сервер не успел ответить вовремя. Попробуйте ещё раз или сократите вопрос."
-            );
+                "Сервер не успел ответить вовремя. Попробуйте ещё раз или сократите вопрос.",
+              data.code
+            )
+          );
           }
-          throw new Error(data.error || "Ошибка " + res.status);
+          throw new Error(userFacingError(data.error, data.code) || "Ошибка " + res.status);
         }
         if (!res.body) {
           throw new Error("Сервер не вернул поток ответа");
@@ -1059,14 +1420,7 @@
         if (e.name === "AbortError") {
           error = "Ответ слишком долгий. Попробуйте короче сформулировать запрос или повторите позже.";
         } else {
-          error = e.message || "Ошибка отправки";
-          if (
-            autoFromVoice &&
-            /лимит|квот|gemini|429|quota|исчерпан/i.test(error)
-          ) {
-            error +=
-              " Подождите 30–60 сек. или введите текстом. Голос = распознавание + ответ (два запроса к API).";
-          }
+          error = userFacingError(e.message, e.code);
         }
         const last = messages[messages.length - 1];
         if (last && last.role === "assistant" && !last.content) messages.pop();
@@ -1103,12 +1457,16 @@
         }
       }
       if (!res.ok) {
-        throw new Error(data.error || data.message || "Ошибка распознавания (HTTP " + res.status + ")");
+        throw new Error(userFacingError(data.error || data.message, data.code) || "Ошибка распознавания");
       }
       return (data.text || "").trim();
     }
 
     function stopRecording() {
+      if (useBrowserStt && recording) {
+        stopBrowserRecording();
+        return;
+      }
       if (!mediaRecorder || mediaRecorder.state === "inactive") return;
       try {
         if (mediaRecorder.state === "recording") {
@@ -1118,12 +1476,59 @@
       mediaRecorder.stop();
     }
 
+    async function stopBrowserRecording() {
+      if (!recording || !useBrowserStt) return;
+      if (browserSttStopTimer) {
+        clearTimeout(browserSttStopTimer);
+        browserSttStopTimer = null;
+      }
+      clearBrowserSttRestartTimer();
+      recording = false;
+      if (micBtn) {
+        micBtn.classList.remove("draxter-aichat-mic--active");
+        micBtn.setAttribute("aria-label", "Голосовое сообщение");
+      }
+      updateSendButton();
+
+      voicePhase = "transcribing";
+      loading = true;
+      error = null;
+      setVoiceStatus("Распознаём в браузере…");
+      renderMessages();
+
+      try {
+        const text = await stopBrowserStt();
+        releaseBrowserMic();
+        voicePhase = "idle";
+        setVoiceStatus("");
+        loading = false;
+        if (!text) {
+          error = browserSttEmptyError();
+          renderMessages();
+          return;
+        }
+        if (inputEl) inputEl.value = text;
+        await sendText(text, true);
+      } catch (e) {
+        releaseBrowserMic();
+        voicePhase = "idle";
+        setVoiceStatus("");
+        loading = false;
+        error = userFacingError(e.message) || "Ошибка голоса";
+        renderMessages();
+      }
+    }
+
     async function startRecording() {
       if (loading || recording) return;
       if (!voiceEnabled) {
         error =
-          "Голосовой ввод отключён. Включите «Голосовой ввод» в настройках модуля draxter.aichat (вкладка «Голос»).";
+          "Голосовой ввод отключён. Включите «Голосовой ввод» в настройках модуля (вкладка «Голос»).";
         renderMessages();
+        return;
+      }
+      if (useBrowserStt) {
+        void startBrowserRecordingFromGesture();
         return;
       }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -1169,14 +1574,10 @@
           recordChunks = [];
           mediaRecorder = null;
 
-          const durationMs = Date.now() - recordStartedAt;
-          if (!blob.size || blob.size < 400) {
+          if (!useBrowserStt && (!blob.size || blob.size < 400)) {
             voicePhase = "idle";
             setVoiceStatus("");
-            error =
-              durationMs < 600
-                ? "Запись слишком короткая. Удерживайте микрофон 1–2 секунды и отпустите."
-                : "Не удалось записать звук. Проверьте микрофон и разрешение браузера.";
+            error = "Не удалось записать звук. Проверьте микрофон и разрешение браузера.";
             renderMessages();
             return;
           }
@@ -1193,7 +1594,8 @@
             setVoiceStatus("");
             loading = false;
             if (!text) {
-              error = "Не удалось распознать речь. Говорите чётче или проверьте GEMINI_API_KEY в настройках модуля.";
+              error =
+                "Не удалось распознать речь. Говорите чётче или проверьте настройки STT на вкладке «Голос» модуля.";
               renderMessages();
               return;
             }
@@ -1203,7 +1605,7 @@
             voicePhase = "idle";
             setVoiceStatus("");
             loading = false;
-            error = e.message || "Ошибка голоса";
+            error = userFacingError(e.message) || "Ошибка голоса";
             renderMessages();
           }
         };
@@ -1305,6 +1707,7 @@
         micBtn.addEventListener("click", () => {
           markTtsUserGesture();
           if (recording) stopRecording();
+          else if (useBrowserStt) void startBrowserRecordingFromGesture();
           else startRecording();
         });
       }
@@ -1319,6 +1722,7 @@
         panelMounted = true;
         root.appendChild(buildPanel());
       }
+      warmBrowserMicOnce();
       closing = false;
       panel.classList.remove("draxter-aichat-panel--closing");
       requestAnimationFrame(() => {
@@ -1348,6 +1752,7 @@
 
     if (embedded) {
       root.appendChild(buildPanel());
+      warmBrowserMicOnce();
       panelOpen = true;
       root.classList.add("draxter-aichat-root--panel-open");
       return;

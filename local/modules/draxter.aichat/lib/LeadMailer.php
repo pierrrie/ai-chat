@@ -41,13 +41,31 @@ class LeadMailer
             . '<p><strong>Сессия:</strong> ' . htmlspecialcharsbx($sessionId) . '</p>'
             . '<pre style="white-space:pre-wrap">' . htmlspecialcharsbx($comment) . '</pre>';
 
-        $sent = Mail::send([
+        $from = trim((string)\Bitrix\Main\Config\Option::get('main', 'email_from', ''));
+        $header = [];
+        if ($from !== '') {
+            $header['From'] = $from;
+        }
+
+        $mail = [
             'TO' => implode(',', $to),
             'SUBJECT' => $subject,
             'BODY' => $body,
-            'CONTENT_TYPE' => 'text/html',
+            'CONTENT_TYPE' => 'html',
             'CHARSET' => 'UTF-8',
-        ]);
+            'HEADER' => $header,
+        ];
+        if ($from !== '') {
+            $mail['FROM'] = $from;
+        }
+
+        try {
+            $sent = Mail::send($mail);
+        } catch (\Throwable $e) {
+            ApiErrorLog::write('email', 'lead.mail', 0, $e->getMessage(), $sessionId);
+
+            return ['ok' => false, 'leadId' => null, 'contactId' => null, 'error' => 'send_failed'];
+        }
 
         if (!$sent) {
             ApiErrorLog::write('email', 'lead.mail', 0, 'Mail::send failed', $sessionId);

@@ -11,7 +11,7 @@ class AdminStats
      *   errors: int,
      *   leads: int,
      *   topPhrases: array<int, array{phrase: string, count: int}>,
-     *   recent: array<int, array{sessionId: string, date: string, phone: ?string, error: bool, turns: int}>
+     *   recent: array<int, array{sessionId: string, date: string, phone: ?string, error: bool, lead: bool, turns: int, preview: string}>
      * }
      */
     public static function aggregate(int $days = 7): array
@@ -63,12 +63,23 @@ class AdminStats
                 $leads++;
             }
 
+            $preview = '';
+            foreach ($turns as $turn) {
+                $um = trim((string)($turn['userMessage'] ?? ''));
+                if ($um !== '') {
+                    $preview = mb_substr($um, 0, 100);
+                    break;
+                }
+            }
+
             $recent[] = [
                 'sessionId' => $sessionId,
                 'date' => (string)($data['updatedAt'] ?? ''),
                 'phone' => is_string($lastPhone) ? $lastPhone : null,
                 'error' => $sessionError,
+                'lead' => !empty($data['lead']['created']),
                 'turns' => count($turns),
+                'preview' => $preview,
                 'updatedTs' => $updated,
             ];
         }
@@ -111,16 +122,40 @@ class AdminStats
         ];
     }
 
-    public static function formatSessionForAdmin(string $sessionId): string
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function getSession(string $sessionId): ?array
     {
         $safe = preg_replace('/[^a-zA-Z0-9_-]/', '', $sessionId);
+        if ($safe === '') {
+            return null;
+        }
         $path = ChatLog::logDir() . '/' . $safe . '.json';
         if (!is_file($path)) {
-            return 'Сессия не найдена.';
+            return null;
         }
         $data = json_decode(file_get_contents($path) ?: '{}', true);
-        if (!is_array($data)) {
-            return 'Некорректный JSON.';
+
+        return is_array($data) ? $data : null;
+    }
+
+    public static function formatAdminDate(string $iso): string
+    {
+        $iso = trim($iso);
+        if ($iso === '') {
+            return '—';
+        }
+        $ts = strtotime($iso);
+
+        return $ts !== false ? date('d.m.Y H:i', $ts) : $iso;
+    }
+
+    public static function formatSessionForAdmin(string $sessionId): string
+    {
+        $data = self::getSession($sessionId);
+        if ($data === null) {
+            return 'Сессия не найдена.';
         }
 
         $out = "Сессия: {$sessionId}\n";

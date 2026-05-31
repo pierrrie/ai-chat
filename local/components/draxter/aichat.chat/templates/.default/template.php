@@ -19,7 +19,7 @@ $fabAlignH = htmlspecialcharsbx($arResult['FAB_ALIGN_H'] ?? 'right');
 $fabAlignV = htmlspecialcharsbx($arResult['FAB_ALIGN_V'] ?? 'bottom');
 $fabOffsetH = htmlspecialcharsbx($arResult['FAB_OFFSET_H'] ?? '24');
 $fabOffsetV = htmlspecialcharsbx($arResult['FAB_OFFSET_V'] ?? '24');
-$assetVer = '2.2.5';
+$assetVer = '2.2.24';
 $cssUrl = $templateFolder . '/style.css';
 $jsUrl = $templateFolder . '/script.js';
 ?>
@@ -44,6 +44,7 @@ $jsUrl = $templateFolder . '/script.js';
     data-voice-max-seconds="<?= htmlspecialcharsbx($arResult['VOICE_MAX_SECONDS'] ?? '60') ?>"
     data-voice-tts-max-chars="<?= htmlspecialcharsbx($arResult['VOICE_TTS_MAX_CHARS'] ?? '1500') ?>"
     data-voice-tts-rate="<?= htmlspecialcharsbx($arResult['VOICE_TTS_RATE'] ?? '1.25') ?>"
+    data-voice-stt="<?= htmlspecialcharsbx($arResult['VOICE_STT'] ?? 'auto') ?>"
     data-ym-enabled="<?= htmlspecialcharsbx($arResult['YM_ENABLED'] ?? '0') ?>"
     data-ym-counter="<?= htmlspecialcharsbx($arResult['YM_COUNTER'] ?? '') ?>"
     data-ym-goal="<?= htmlspecialcharsbx($arResult['YM_GOAL'] ?? 'aibot') ?>"

@@ -70,7 +70,8 @@ class ChatHandler
             $result = VoiceService::transcribe($_FILES['audio']['tmp_name'], $mime);
             echo Json::encode(['ok' => true, 'text' => $result['text'], 'provider' => $result['provider']], JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
-            $this->jsonError(500, $e->getMessage(), 'STT_ERROR');
+            $formatted = LlmClient::formatError($e);
+            $this->jsonError($formatted['status'], $formatted['error'], $formatted['code'] ?? 'STT_ERROR');
         }
     }
 
@@ -105,7 +106,8 @@ class ChatHandler
             header('Cache-Control: no-store');
             echo $result['audio'] ?? '';
         } catch (\Throwable $e) {
-            $this->jsonError(500, $e->getMessage(), 'TTS_ERROR');
+            $formatted = LlmClient::formatError($e);
+            $this->jsonError($formatted['status'], $formatted['error'], $formatted['code'] ?? 'TTS_ERROR');
         }
     }
 
@@ -135,6 +137,7 @@ class ChatHandler
 
         $sessionId = $this->resolveSessionId($body['sessionId'] ?? null);
         header('X-Chat-Session-Id: ' . $sessionId);
+        ApiErrorLog::setRequestSessionId($sessionId);
         ChatLog::ensureSession($sessionId);
 
         $lastUser = '';
@@ -153,7 +156,14 @@ class ChatHandler
 
         if (LeadFlow::isPhoneOnlyUserMessage($lastUser)) {
             $leadMeta = ChatLog::getLeadMeta($sessionId);
-            $leadResult = $leadMeta['created'] ? ['ok' => true, 'leadId' => $leadMeta['leadId'], 'contactId' => $leadMeta['contactId'], 'error' => null] : LeadFlow::tryCreateLead($sessionId, $messages, [], $tracking);
+            try {
+                $leadResult = $leadMeta['created']
+                    ? ['ok' => true, 'leadId' => $leadMeta['leadId'], 'contactId' => $leadMeta['contactId'], 'error' => null]
+                    : LeadFlow::tryCreateLead($sessionId, $messages, [], $tracking);
+            } catch (\Throwable $e) {
+                ApiErrorLog::write('lead', 'dispatch', 0, $e->getMessage(), $sessionId);
+                $leadResult = ['ok' => false, 'error' => 'dispatch_failed'];
+            }
             $phone = Phone::extractFromMessages($messages) ?? $lastUser;
             $displayPhone = $phone;
             if (str_starts_with($phone, '+7') && strlen($phone) === 12) {
@@ -288,12 +298,17 @@ class ChatHandler
         if ($this->leadDeferred !== null && $this->leadDeferred['sessionId'] === $sessionId) {
             $ctx = $this->leadDeferred;
             $this->leadDeferred = null;
-            $leadResult = LeadFlow::tryCreateLead(
-                $ctx['sessionId'],
-                $ctx['messages'],
-                $ctx['relevant'],
-                $ctx['tracking']
-            );
+            try {
+                $leadResult = LeadFlow::tryCreateLead(
+                    $ctx['sessionId'],
+                    $ctx['messages'],
+                    $ctx['relevant'],
+                    $ctx['tracking']
+                );
+            } catch (\Throwable $e) {
+                ApiErrorLog::write('lead', 'dispatch', 0, $e->getMessage(), $sessionId);
+                $leadResult = ['ok' => false, 'error' => 'dispatch_failed'];
+            }
             if (is_array($leadResult) && !empty($leadResult['ok'])) {
                 $this->signalLeadCreatedToClient(true);
             }

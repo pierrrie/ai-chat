@@ -48,7 +48,12 @@ class LeadDispatcher
         }
 
         if (Settings::isCrmEmailEnabled()) {
-            $r = LeadMailer::sendLead($sessionId, $messages, $products, $phone, $clientName, $tracking);
+            try {
+                $r = LeadMailer::sendLead($sessionId, $messages, $products, $phone, $clientName, $tracking);
+            } catch (\Throwable $e) {
+                ApiErrorLog::write('email', 'lead.mail', 0, $e->getMessage(), $sessionId);
+                $r = ['ok' => false, 'leadId' => null, 'contactId' => null, 'error' => 'send_failed'];
+            }
             $channels['email'] = $r;
             if (!empty($r['ok'])) {
                 $anyOk = true;

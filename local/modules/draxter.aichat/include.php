@@ -17,6 +17,7 @@ Loader::registerAutoLoadClasses('draxter.aichat', [
     'Draxter\\Aichat\\FaqKnowledge' => 'lib/FaqKnowledge.php',
     'Draxter\\Aichat\\CustomPrompts' => 'lib/CustomPrompts.php',
     'Draxter\\Aichat\\CustomProviders' => 'lib/CustomProviders.php',
+    'Draxter\\Aichat\\CustomVoiceProviders' => 'lib/CustomVoiceProviders.php',
     'Draxter\\Aichat\\CatalogPrompt' => 'lib/CatalogPrompt.php',
     'Draxter\\Aichat\\CatalogProfile' => 'lib/CatalogProfile.php',
     'Draxter\\Aichat\\LlmClient' => 'lib/LlmClient.php',

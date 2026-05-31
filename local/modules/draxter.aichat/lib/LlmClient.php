@@ -195,7 +195,8 @@ class LlmClient
         }
 
         if ($status >= 400) {
-            ApiErrorLog::write(Config::aiProvider(), 'chat.stream', $status, 'LLM HTTP error');
+            $provider = Config::aiProvider();
+            ApiErrorLog::write($provider, 'chat.stream', $status, ApiErrorLog::formatHttpError($status, trim($lineBuffer), $provider));
             throw new \RuntimeException("LLM HTTP {$status}");
         }
 
@@ -265,7 +266,8 @@ class LlmClient
             throw new \RuntimeException($error ?: 'Ошибка запроса к LLM');
         }
         if ($status >= 400) {
-            ApiErrorLog::write($llm['provider'] ?? Config::aiProvider(), 'chat.complete', $status, (string)$raw);
+            $provider = $llm['provider'] ?? Config::aiProvider();
+            ApiErrorLog::write($provider, 'chat.complete', $status, ApiErrorLog::formatHttpError($status, (string)$raw, $provider));
             throw new \RuntimeException("LLM HTTP {$status}");
         }
 
@@ -317,7 +319,60 @@ class LlmClient
         return null;
     }
 
-    public static function formatError(\Throwable $err): array
+    public static function formatError(\Throwable $err, bool $forAdmin = false): array
+    {
+        $classified = self::classifyError($err);
+
+        return [
+            'status' => $classified['status'],
+            'code' => $classified['code'],
+            'error' => $forAdmin
+                ? $classified['adminMessage']
+                : self::publicErrorMessage($classified['code'], $err),
+        ];
+    }
+
+    public static function publicErrorMessage(string $code, ?\Throwable $err = null): string
+    {
+        $fromSettings = Settings::message('error_' . strtolower($code));
+        if ($fromSettings !== '') {
+            return $fromSettings;
+        }
+
+        $raw = $err !== null ? $err->getMessage() : '';
+        $isStt = $raw !== '' && (bool)preg_match('/\bstt\b|transcri|распозна/i', $raw);
+        $isTts = $raw !== '' && (bool)preg_match('/\btts\b|озвуч/i', $raw);
+
+        if ($isStt) {
+            if ($code === 'QUOTA_EXCEEDED') {
+                return 'Не удалось распознать речь. Подождите минуту или введите сообщение текстом.';
+            }
+
+            return 'Не удалось распознать речь. Попробуйте ещё раз или введите сообщение текстом.';
+        }
+        if ($isTts) {
+            return 'Озвучка временно недоступна.';
+        }
+
+        switch ($code) {
+            case 'QUOTA_EXCEEDED':
+                return 'Сейчас консультант перегружен. Подождите минуту и попробуйте снова, или напишите текстом.';
+            case 'API_DISABLED':
+            case 'INVALID_KEY':
+                return 'Консультант временно недоступен. Попробуйте позже.';
+            case 'STT_ERROR':
+                return 'Не удалось распознать речь. Попробуйте ещё раз или введите сообщение текстом.';
+            case 'TTS_ERROR':
+                return 'Озвучка временно недоступна.';
+            default:
+                return 'Не удалось получить ответ. Попробуйте ещё раз.';
+        }
+    }
+
+    /**
+     * @return array{status: int, code: string, adminMessage: string}
+     */
+    private static function classifyError(\Throwable $err): array
     {
         $raw = $err->getMessage();
         $provider = Config::aiProvider();
@@ -328,7 +383,7 @@ class LlmClient
             return [
                 'status' => 403,
                 'code' => 'API_DISABLED',
-                'error' => 'Gemini API не включён для этого ключа. Создайте ключ на https://aistudio.google.com/apikey',
+                'adminMessage' => 'Gemini API не включён для этого ключа. Создайте ключ на https://aistudio.google.com/apikey',
             ];
         }
 
@@ -345,10 +400,11 @@ class LlmClient
                 ? ' Слишком много запросов подряд — подождите 30–60 сек. Голосовой ввод делает отдельный запрос на распознавание.'
                 : '';
             $billingPart = $billingUrl !== '' ? " Проверьте квоту: {$billingUrl}" : '';
+
             return [
                 'status' => 402,
                 'code' => 'QUOTA_EXCEEDED',
-                'error' => "Лимит или баланс {$providerName} исчерпан.{$billingPart}{$hint}",
+                'adminMessage' => "Лимит или баланс {$providerName} исчерпан.{$billingPart}{$hint}",
             ];
         }
 
@@ -356,10 +412,14 @@ class LlmClient
             return [
                 'status' => 401,
                 'code' => 'INVALID_KEY',
-                'error' => 'Неверный API-ключ. Проверьте настройки модуля AI-чат.',
+                'adminMessage' => 'Неверный API-ключ. Проверьте настройки модуля AI-чат.',
             ];
         }
 
-        return ['status' => 500, 'error' => $raw, 'code' => 'ERROR'];
+        return [
+            'status' => 500,
+            'code' => 'ERROR',
+            'adminMessage' => $raw,
+        ];
     }
 }

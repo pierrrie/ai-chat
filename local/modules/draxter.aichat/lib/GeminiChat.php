@@ -109,7 +109,7 @@ class GeminiChat
             throw new \RuntimeException($error ?: 'Gemini complete error');
         }
         if ($status >= 400) {
-            ApiErrorLog::write('gemini', 'chat.complete', $status, (string)$raw);
+            ApiErrorLog::write('gemini', 'chat.complete', $status, ApiErrorLog::formatHttpError($status, (string)$raw, 'gemini'));
             throw new \RuntimeException("Gemini HTTP {$status}" . ($raw !== '' ? ': ' . trim($raw) : ''));
         }
 
@@ -236,7 +236,7 @@ class GeminiChat
         }
 
         if ($status >= 400) {
-            ApiErrorLog::write('gemini', 'chat.stream', $status, trim($lineBuffer) ?: 'HTTP error');
+            ApiErrorLog::write('gemini', 'chat.stream', $status, ApiErrorLog::formatHttpError($status, trim($lineBuffer), 'gemini'));
             throw new \RuntimeException("Gemini HTTP {$status}" . ($lineBuffer !== '' ? ': ' . trim($lineBuffer) : ''));
         }
 

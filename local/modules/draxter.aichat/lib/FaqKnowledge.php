@@ -240,7 +240,7 @@ class FaqKnowledge
 
             } catch (\Throwable $e) {
 
-                $formatted = LlmClient::formatError($e);
+                $formatted = LlmClient::formatError($e, true);
 
                 $aiError = (string)($formatted['error'] ?? $e->getMessage());
 

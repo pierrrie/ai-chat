@@ -52,7 +52,11 @@ class RateLimit
     public static function storageDir(): string
     {
         $docRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/\\');
-        $base = $docRoot !== '' ? $docRoot . '/upload/draxter_aichat_ratelimit' : sys_get_temp_dir() . '/draxter_aichat_ratelimit';
+        $base = $docRoot !== '' ? $docRoot . '/upload/aichat_ratelimit' : sys_get_temp_dir() . '/aichat_ratelimit';
+        $legacy = $docRoot !== '' ? $docRoot . '/upload/draxter_aichat_ratelimit' : '';
+        if ($legacy !== '' && is_dir($legacy) && !is_dir($base)) {
+            $base = $legacy;
+        }
 
         return $base;
     }

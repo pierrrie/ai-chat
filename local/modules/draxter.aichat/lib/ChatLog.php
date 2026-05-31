@@ -4,13 +4,26 @@ namespace Draxter\Aichat;
 
 class ChatLog
 {
+    public const DEFAULT_LOG_DIR = '/upload/aichat_logs';
+    private const LEGACY_LOG_DIR = '/upload/draxter_aichat_logs';
+
     public static function logDir(): string
     {
         $fromOption = trim(Config::get('CHAT_LOG_DIR', ''));
         if ($fromOption !== '') {
             return rtrim($fromOption, '/\\');
         }
-        return $_SERVER['DOCUMENT_ROOT'] . '/upload/draxter_aichat_logs';
+        $docRoot = (string)($_SERVER['DOCUMENT_ROOT'] ?? '');
+        if ($docRoot === '') {
+            return self::DEFAULT_LOG_DIR;
+        }
+        $preferred = $docRoot . self::DEFAULT_LOG_DIR;
+        $legacy = $docRoot . self::LEGACY_LOG_DIR;
+        if (is_dir($legacy) && !is_dir($preferred)) {
+            return $legacy;
+        }
+
+        return $preferred;
     }
 
     public static function ensureSession(string $sessionId): void
