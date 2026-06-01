@@ -27,11 +27,14 @@ class BitrixCatalog
             'IBLOCK_SECTION_ID',
         ];
 
+        $max = max(0, Settings::getInt('CATALOG_MAX_PRODUCTS', 3000));
+        $nav = $max > 0 ? ['nTopCount' => $max] : false;
+
         $rs = \CIBlockElement::GetList(
             ['SORT' => 'ASC', 'NAME' => 'ASC'],
             ['IBLOCK_ID' => $iblockId, 'ACTIVE' => 'Y', 'CHECK_PERMISSIONS' => 'Y'],
             false,
-            false,
+            $nav,
             $select
         );
 
@@ -64,7 +67,7 @@ class BitrixCatalog
             }
 
             $description = trim(strip_tags((string)($row['DETAIL_TEXT'] ?: $row['PREVIEW_TEXT'])));
-            $description = mb_substr(preg_replace('/\s+/u', ' ', $description) ?? '', 0, 1500);
+            $description = mb_substr(preg_replace('/\s+/u', ' ', $description) ?? '', 0, 400);
 
             $sectionName = 'Без категории';
             if (!empty($row['IBLOCK_SECTION_ID'])) {

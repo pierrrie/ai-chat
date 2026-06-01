@@ -44,7 +44,7 @@ class YmlCatalog
             $categoryId = (string)($offer->categoryId ?? '');
             $category = self::categoryPath($categoryId, $categoryMap);
             $fullDescription = self::stripHtml((string)($offer->description ?? ''));
-            $description = mb_substr($fullDescription, 0, 1500);
+            $description = mb_substr($fullDescription, 0, 400);
             $specs = array_merge($specs, self::extractSpecsFromDescription($fullDescription));
 
             $price = (float)preg_replace('/\s+/u', '', (string)($offer->price ?? '0'));

@@ -38,6 +38,15 @@ class Catalog
         if (method_exists($cache, 'clean')) {
             $cache->clean($cacheId, '/draxter.aichat/catalog');
         }
+        if (method_exists($cache, 'cleanDir')) {
+            $cache->cleanDir('/draxter.aichat/catalog');
+        }
+    }
+
+    /** Bitrix file cache для каталога отключён — большие фиды вызывали OOM при чтении кэша. */
+    private static function useBitrixCache(): bool
+    {
+        return Settings::getBool('CATALOG_BITRIX_CACHE', false);
     }
 
     /**
@@ -53,14 +62,17 @@ class Catalog
         $cacheTtl = max(60, (int)Config::get('CATALOG_REFRESH_MINUTES', '60') * 60);
         $cacheId = 'draxter_aichat_catalog_' . md5($source . Config::get('CATALOG_URL') . Config::get('CATALOG_IBLOCK_ID'));
 
-        $cache = Cache::createInstance();
-        if ($cache->initCache($cacheTtl, $cacheId, '/draxter.aichat/catalog')) {
-            $vars = $cache->getVars();
-            self::$products = array_map(static fn($row) => Product::fromArray($row), $vars['products'] ?? []);
-            self::$meta = $vars['meta'] ?? [];
-            self::$loadedFrom = (string)($vars['path'] ?? '');
-            self::$loadedAt = (int)($vars['loadedAt'] ?? 0);
-            return self::$products;
+        if (self::useBitrixCache()) {
+            $cache = Cache::createInstance();
+            if ($cache->initCache($cacheTtl, $cacheId, '/draxter.aichat/catalog')) {
+                $vars = $cache->getVars();
+                self::$products = array_map(static fn($row) => Product::fromArray($row), $vars['products'] ?? []);
+                self::$meta = $vars['meta'] ?? [];
+                self::$loadedFrom = (string)($vars['path'] ?? '');
+                self::$loadedAt = (int)($vars['loadedAt'] ?? 0);
+
+                return self::$products;
+            }
         }
 
         if ($source === 'iblock') {
@@ -89,10 +101,35 @@ class Catalog
         }
 
         self::$loadedAt = time();
+        self::$products = self::applyLoadLimits(self::$products);
 
-        self::writeBitrixCache($cache, $cacheId);
+        if (self::useBitrixCache()) {
+            self::writeBitrixCache(Cache::createInstance(), $cacheId);
+        }
 
         return self::$products;
+    }
+
+    /**
+     * @param Product[] $products
+     * @return Product[]
+     */
+    private static function applyLoadLimits(array $products): array
+    {
+        $max = max(0, Settings::getInt('CATALOG_MAX_PRODUCTS', 3000));
+        if ($max > 0 && count($products) > $max) {
+            $products = array_slice($products, 0, $max);
+        }
+        foreach ($products as $p) {
+            if (mb_strlen($p->description) > 400) {
+                $p->description = mb_substr($p->description, 0, 400);
+            }
+            if (count($p->specs) > 5) {
+                $p->specs = array_slice($p->specs, 0, 5, true);
+            }
+        }
+
+        return $products;
     }
 
     private static function writeBitrixCache(Cache $cache, string $cacheId): void
@@ -140,7 +177,20 @@ class Catalog
     /** @return array<string, mixed> */
     public static function getInfo(): array
     {
+        $source = Config::get('CATALOG_SOURCE', 'yml_url');
         try {
+            if (self::$products !== null) {
+                return self::buildInfoArray();
+            }
+            if ($source === 'yml_url' || $source === 'yml_file') {
+                $xml = $source === 'yml_file'
+                    ? (is_readable(Config::get('CATALOG_PATH', '')) ? (string)file_get_contents(Config::get('CATALOG_PATH', '')) : '')
+                    : self::fetchXml(self::resolveCatalogUrl(Config::get('CATALOG_URL', '')));
+                self::$meta = YmlCatalog::metaFromXml($xml);
+                self::$loadedFrom = $source === 'yml_file' ? Config::get('CATALOG_PATH', '') : Config::get('CATALOG_URL', '');
+
+                return self::buildInfoArray();
+            }
             self::getAllProducts();
         } catch (\Throwable $e) {
             return [
@@ -149,16 +199,24 @@ class Catalog
                 'shopName' => null,
                 'shopUrl' => null,
                 'loadedAt' => null,
+                'source' => $source,
                 'error' => $e->getMessage(),
             ];
         }
 
+        return self::buildInfoArray();
+    }
+
+    /** @return array<string, mixed> */
+    private static function buildInfoArray(): array
+    {
         return [
             'path' => self::$loadedFrom,
             'count' => self::$meta['count'] ?? count(self::$products ?? []),
             'shopName' => self::$meta['shopName'] ?? null,
             'shopUrl' => self::$meta['shopUrl'] ?? null,
             'loadedAt' => self::$loadedAt ? date('c', self::$loadedAt) : null,
+            'source' => Config::get('CATALOG_SOURCE', 'yml_url'),
         ];
     }
 
