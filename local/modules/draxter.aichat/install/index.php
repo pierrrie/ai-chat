@@ -43,7 +43,7 @@ class draxter_aichat extends CModule
         ModuleManager::unRegisterModule($this->MODULE_ID);
     }
 
-    public function installEvents(): bool
+    public function installEvents()
     {
         RegisterModuleDependences('main', 'OnEndBufferContent', $this->MODULE_ID, '\\Draxter\\Aichat\\WidgetInject', 'onEndBufferContent');
         RegisterModuleDependences('main', 'OnEpilog', $this->MODULE_ID, '\\Draxter\\Aichat\\WidgetInject', 'onEpilog');
@@ -52,7 +52,7 @@ class draxter_aichat extends CModule
         return true;
     }
 
-    private function installModuleRights(): void
+    private function installModuleRights()
     {
         global $APPLICATION;
         if (isset($APPLICATION) && is_object($APPLICATION) && method_exists($APPLICATION, 'SetGroupRight')) {
@@ -62,7 +62,7 @@ class draxter_aichat extends CModule
         Option::set($this->MODULE_ID, 'MODULE_RIGHTS_V1', 'Y');
     }
 
-    public function uninstallEvents(): bool
+    public function uninstallEvents()
     {
         UnRegisterModuleDependences('main', 'OnEndBufferContent', $this->MODULE_ID, '\\Draxter\\Aichat\\WidgetInject', 'onEndBufferContent');
         UnRegisterModuleDependences('main', 'OnEpilog', $this->MODULE_ID, '\\Draxter\\Aichat\\WidgetInject', 'onEpilog');
@@ -71,7 +71,7 @@ class draxter_aichat extends CModule
         return true;
     }
 
-    public function GetModuleRightList(): array
+    public function GetModuleRightList()
     {
         return [
             'reference_id' => ['D', 'R', 'W'],
@@ -83,7 +83,7 @@ class draxter_aichat extends CModule
         ];
     }
 
-    public function installFiles(): bool
+    public function installFiles()
     {
         CopyDirFiles(
             __DIR__ . '/components',
@@ -100,7 +100,7 @@ class draxter_aichat extends CModule
         return true;
     }
 
-    public function uninstallFiles(): bool
+    public function uninstallFiles()
     {
         DeleteDirFilesEx('/local/components/draxter/aichat.chat');
         @unlink($_SERVER['DOCUMENT_ROOT'] . '/local/ajax/draxter_aichat.php');
