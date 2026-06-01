@@ -15,10 +15,7 @@ class CatalogProfile
             return self::$gardenOnly;
         }
 
-        $profile = strtolower(trim(Settings::get('CATALOG_PROFILE', 'auto')));
-        if ($profile === '') {
-            $profile = strtolower(trim((string)SiteConfig::get('catalog.profile', 'auto')));
-        }
+        $profile = self::profileName();
         if (in_array($profile, ['garden', 'wood', 'chippers'], true)) {
             if (self::catalogHasSnowProducts() || self::catalogHasMotorcycleProducts()) {
                 return self::$gardenOnly = false;
@@ -31,6 +28,22 @@ class CatalogProfile
         }
 
         return self::$gardenOnly = self::detectGardenOnlyFromCatalog();
+    }
+
+    public static function profileName(): string
+    {
+        $profile = strtolower(trim(Settings::get('CATALOG_PROFILE', 'auto')));
+        if ($profile === '') {
+            $profile = strtolower(trim((string)SiteConfig::get('catalog.profile', 'auto')));
+        }
+
+        return $profile !== '' ? $profile : 'auto';
+    }
+
+    /** Профиль «Полный» — в промпт всегда весь каталог, без сужения по ключевым словам. */
+    public static function isFullCatalog(): bool
+    {
+        return in_array(self::profileName(), ['full', 'multi', 'all'], true);
     }
 
     public static function specializationLine(): string

@@ -299,6 +299,20 @@ class Search
             }
         }
 
+        if (preg_match('/минитрактор|мини[\s\-–—]*трактор|мотоблок/ui', $q)) {
+            if (preg_match('/^мини[\s\-–—]*трактор/ui', $name)) {
+                $score += 35;
+            } elseif (preg_match('/мини[\s\-–—]*трактор/ui', $name)) {
+                $score += 20;
+            }
+            if (preg_match('/косил/ui', $q) && preg_match('/косил/ui', $name)) {
+                $score += 18;
+            }
+            if (preg_match('/мотоблок/ui', $name)) {
+                $score += 12;
+            }
+        }
+
         if (self::isPmuQuery($q)) {
             if (self::isPmuProduct($product)) {
                 $score += 50;

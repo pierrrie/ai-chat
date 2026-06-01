@@ -9,6 +9,10 @@ class CatalogPrompt
      */
     public static function detectCatalogScope(string $lastUserText, array $messages = []): string
     {
+        if (CatalogProfile::isFullCatalog()) {
+            return 'overview';
+        }
+
         $recent = $lastUserText;
         $n = 0;
         for ($i = count($messages) - 1; $i >= 0 && $n < 2; $i--) {
@@ -37,7 +41,7 @@ class CatalogPrompt
         if (preg_match('/щепорез|измельчит|мульч|пму|ветк|садов|утилизатор|древесин/ui', $recent)) {
             return 'garden';
         }
-        if (CatalogProfile::scopeEnabled('tractor') && preg_match('/минитрактор|мотоблок/ui', $recent)) {
+        if (CatalogProfile::scopeEnabled('tractor') && preg_match(self::tractorQueryPattern(), $recent)) {
             return 'tractor';
         }
         if (CatalogProfile::scopeEnabled('grill') && preg_match('/гриль|мангал|барбекю/ui', $recent)) {
@@ -52,6 +56,10 @@ class CatalogPrompt
      */
     public static function buildForAiPrompt(string $siteUrl, array $messages = []): string
     {
+        if (CatalogProfile::isFullCatalog()) {
+            return self::fullCatalogBlock($siteUrl);
+        }
+
         $lastUser = '';
         for ($i = count($messages) - 1; $i >= 0; $i--) {
             if (($messages[$i]['role'] ?? '') === 'user') {
@@ -98,7 +106,10 @@ class CatalogPrompt
                 . self::compactLines($garden, $siteUrl);
         }
         if ($scope === 'tractor') {
-            return self::compactLines(self::filterProducts($all, '/минитрактор|мотоблок/ui'), $siteUrl);
+            $items = self::sortTractorsFirst(self::filterProducts($all, self::tractorProductPattern()));
+
+            return '=== Минитракторы и навесное (' . count($items) . ") ===\n"
+                . self::compactLines($items, $siteUrl);
         }
         if ($scope === 'grill') {
             return self::compactLines(self::filterProducts($all, '/гриль|мангал|барбекю/ui'), $siteUrl);
@@ -106,6 +117,15 @@ class CatalogPrompt
 
         return 'Указатель категорий:' . "\n" . self::categoryIndex()
             . "\n\n=== Полный каталог ===\n" . self::compactLines($all, $siteUrl);
+    }
+
+    private static function fullCatalogBlock(string $siteUrl): string
+    {
+        $all = Catalog::getAllProducts();
+
+        return 'Указатель категорий:' . "\n" . self::categoryIndex()
+            . "\n\n=== Полный каталог (" . count($all) . ") ===\n"
+            . self::compactLines($all, $siteUrl);
     }
 
     /**
@@ -159,6 +179,41 @@ class CatalogPrompt
         }
 
         return implode("\n", $lines);
+    }
+
+    private static function tractorQueryPattern(): string
+    {
+        return '/минитрактор|мини[\s\-–—]*трактор|мотоблок|косилк.*трактор|трактор.*косилк/ui';
+    }
+
+    private static function tractorProductPattern(): string
+    {
+        return '/минитрактор|мини[\s\-–—]*трактор|мотоблок/ui';
+    }
+
+    /**
+     * @param Product[] $products
+     * @return Product[]
+     */
+    private static function sortTractorsFirst(array $products): array
+    {
+        usort($products, static function (Product $a, Product $b): int {
+            $rank = static function (Product $p): int {
+                $n = mb_strtolower($p->name);
+                if (preg_match('/^мини[\s\-–—]*трактор/ui', $n)) {
+                    return 0;
+                }
+                if (preg_match('/мотоблок/ui', $n) && !preg_match('/приставк|пму/ui', $n)) {
+                    return 1;
+                }
+
+                return 2;
+            };
+
+            return $rank($a) <=> $rank($b);
+        });
+
+        return $products;
     }
 
     /**
