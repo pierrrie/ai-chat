@@ -4,6 +4,11 @@ namespace Draxter\Aichat;
 
 class CatalogPrompt
 {
+    /** Сколько позиций можно вывести в промпт целиком (больше — указатель + подбор). */
+    private const INLINE_FULL_MAX = 250;
+
+    private const LARGE_RELEVANT_LIMIT = 50;
+
     /**
      * @param array<int, array{role: string, content: string}> $messages
      */
@@ -57,7 +62,7 @@ class CatalogPrompt
     public static function buildForAiPrompt(string $siteUrl, array $messages = []): string
     {
         if (CatalogProfile::isFullCatalog()) {
-            return self::fullCatalogBlock($siteUrl);
+            return self::fullCatalogBlock($siteUrl, $messages);
         }
 
         $lastUser = '';
@@ -115,45 +120,83 @@ class CatalogPrompt
             return self::compactLines(self::filterProducts($all, '/гриль|мангал|барбекю/ui'), $siteUrl);
         }
 
-        return 'Указатель категорий:' . "\n" . self::categoryIndex()
-            . "\n\n=== Полный каталог ===\n" . self::compactLines($all, $siteUrl);
+        return self::overviewCatalogBlock($siteUrl, $all, $messages);
     }
 
-    private static function fullCatalogBlock(string $siteUrl): string
+    /**
+     * @param Product[] $all
+     * @param array<int, array{role: string, content: string}> $messages
+     */
+    private static function fullCatalogBlock(string $siteUrl, array $messages): string
     {
-        $all = Catalog::getAllProducts();
+        return self::overviewCatalogBlock($siteUrl, Catalog::getAllProducts(), $messages);
+    }
 
-        return 'Указатель категорий:' . "\n" . self::categoryIndex()
-            . "\n\n=== Полный каталог (" . count($all) . ") ===\n"
-            . self::compactLines($all, $siteUrl);
+    /**
+     * @param Product[] $all
+     * @param array<int, array{role: string, content: string}> $messages
+     */
+    private static function overviewCatalogBlock(string $siteUrl, array $all, array $messages): string
+    {
+        $total = count($all);
+        $index = self::categoryIndexFromProducts($all);
+
+        if ($total <= self::INLINE_FULL_MAX) {
+            return 'Указатель категорий:' . "\n" . $index
+                . "\n\n=== Полный каталог (" . $total . ") ===\n"
+                . self::compactLines($all, $siteUrl, false);
+        }
+
+        $query = trim(self::extractLastUserText($messages) . ' ' . self::recentDialogText($messages, 3));
+        $relevant = $query !== ''
+            ? Search::findRelevantProducts($query, self::LARGE_RELEVANT_LIMIT)
+            : [];
+
+        $block = 'В каталоге ' . $total . ' товаров. В промпт нельзя загрузить все позиции сразу — '
+            . "используй указатель категорий и список ниже.\n"
+            . "Указатель категорий:\n" . $index;
+
+        if ($relevant !== []) {
+            $block .= "\n\n=== Подбор по запросу (" . count($relevant) . ") ===\n"
+                . self::compactLines($relevant, $siteUrl, true);
+        } else {
+            $block .= "\n\n=== Примеры из категорий ===\n"
+                . self::compactLines(self::samplePerCategory($all, 2, 80), $siteUrl, true);
+        }
+
+        $block .= "\n\nНе пиши «нет в каталоге», пока не проверил подходящую категорию в указателе.";
+
+        return $block;
     }
 
     /**
      * @param Product[] $products
      */
-    private static function compactLines(array $products, string $siteUrl): string
+    private static function compactLines(array $products, string $siteUrl, bool $minimal = false): string
     {
         $lines = [];
         foreach ($products as $p) {
-            $specs = [];
-            $n = 0;
-            foreach ($p->specs as $k => $v) {
-                if ($n++ >= 5) {
-                    break;
-                }
-                $specs[] = $k . ': ' . $v;
-            }
             $stock = $p->inStock ? 'в наличии' : 'нет';
-            $desc = trim(preg_replace('/\s+/u', ' ', $p->description) ?? '');
-            if (mb_strlen($desc) > 80) {
-                $desc = mb_substr($desc, 0, 80);
-            }
-            $tail = implode(' | ', array_filter([implode('; ', $specs), $desc]));
             $url = Catalog::productLink($p, $siteUrl);
             $line = '[' . $p->id . '] ' . $p->name . ' | ' . $p->category . ' | '
                 . Catalog::formatPrice($p) . ' | ' . $stock . ' | URL: ' . $url;
-            if ($tail !== '') {
-                $line .= ' | ' . $tail;
+            if (!$minimal) {
+                $specs = [];
+                $n = 0;
+                foreach ($p->specs as $k => $v) {
+                    if ($n++ >= 5) {
+                        break;
+                    }
+                    $specs[] = $k . ': ' . $v;
+                }
+                $desc = trim(preg_replace('/\s+/u', ' ', $p->description) ?? '');
+                if (mb_strlen($desc) > 80) {
+                    $desc = mb_substr($desc, 0, 80);
+                }
+                $tail = implode(' | ', array_filter([implode('; ', $specs), $desc]));
+                if ($tail !== '') {
+                    $line .= ' | ' . $tail;
+                }
             }
             $lines[] = $line;
         }
@@ -161,10 +204,13 @@ class CatalogPrompt
         return implode("\n", $lines);
     }
 
-    private static function categoryIndex(): string
+    /**
+     * @param Product[] $products
+     */
+    private static function categoryIndexFromProducts(array $products): string
     {
         $byCat = [];
-        foreach (Catalog::getAllProducts() as $p) {
+        foreach ($products as $p) {
             $c = $p->category !== '' ? $p->category : 'Прочее';
             $byCat[$c][] = $p;
         }
@@ -179,6 +225,49 @@ class CatalogPrompt
         }
 
         return implode("\n", $lines);
+    }
+
+    private static function categoryIndex(): string
+    {
+        return self::categoryIndexFromProducts(Catalog::getAllProducts());
+    }
+
+    /**
+     * @param Product[] $all
+     * @return Product[]
+     */
+    private static function samplePerCategory(array $all, int $perCategory, int $maxTotal): array
+    {
+        $byCat = [];
+        foreach ($all as $p) {
+            $c = $p->category !== '' ? $p->category : 'Прочее';
+            $byCat[$c][] = $p;
+        }
+        $out = [];
+        foreach ($byCat as $items) {
+            foreach (array_slice($items, 0, $perCategory) as $p) {
+                $out[] = $p;
+                if (count($out) >= $maxTotal) {
+                    return $out;
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int, array{role: string, content: string}> $messages
+     */
+    private static function extractLastUserText(array $messages): string
+    {
+        for ($i = count($messages) - 1; $i >= 0; $i--) {
+            if (($messages[$i]['role'] ?? '') === 'user') {
+                return trim((string)($messages[$i]['content'] ?? ''));
+            }
+        }
+
+        return '';
     }
 
     private static function tractorQueryPattern(): string

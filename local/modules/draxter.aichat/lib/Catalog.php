@@ -7,6 +7,10 @@ use Bitrix\Main\Web\HttpClient;
 
 class Catalog
 {
+    private const CACHE_MAX_PRODUCTS = 500;
+
+    private const CACHE_MAX_SERIALIZED_BYTES = 3_000_000;
+
     /** @var Product[]|null */
     private static ?array $products = null;
 
@@ -22,7 +26,18 @@ class Catalog
         self::$products = null;
         self::$meta = null;
         CatalogProfile::resetCache();
+        self::clearBitrixCache();
         self::getAllProducts();
+    }
+
+    public static function clearBitrixCache(): void
+    {
+        $source = Config::get('CATALOG_SOURCE', 'yml_url');
+        $cacheId = 'draxter_aichat_catalog_' . md5($source . Config::get('CATALOG_URL') . Config::get('CATALOG_IBLOCK_ID'));
+        $cache = Cache::createInstance();
+        if (method_exists($cache, 'clean')) {
+            $cache->clean($cacheId, '/draxter.aichat/catalog');
+        }
     }
 
     /**
@@ -75,16 +90,51 @@ class Catalog
 
         self::$loadedAt = time();
 
-        if ($cache->startDataCache()) {
-            $cache->endDataCache([
-                'products' => array_map(static fn(Product $p) => $p->toArray(), self::$products),
-                'meta' => self::$meta,
-                'path' => self::$loadedFrom,
-                'loadedAt' => self::$loadedAt,
-            ]);
-        }
+        self::writeBitrixCache($cache, $cacheId);
 
         return self::$products;
+    }
+
+    private static function writeBitrixCache(Cache $cache, string $cacheId): void
+    {
+        $products = self::$products ?? [];
+        if ($products === [] || count($products) > self::CACHE_MAX_PRODUCTS) {
+            return;
+        }
+
+        $payload = [
+            'products' => array_map(static fn(Product $p) => self::productToCacheRow($p), $products),
+            'meta' => self::$meta,
+            'path' => self::$loadedFrom,
+            'loadedAt' => self::$loadedAt,
+        ];
+
+        if (strlen(serialize($payload)) > self::CACHE_MAX_SERIALIZED_BYTES) {
+            return;
+        }
+
+        if ($cache->startDataCache()) {
+            $cache->endDataCache($payload);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function productToCacheRow(Product $p): array
+    {
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'category' => $p->category,
+            'price' => $p->price,
+            'currency' => $p->currency,
+            'url' => $p->url,
+            'inStock' => $p->inStock,
+            'description' => mb_substr($p->description, 0, 240),
+            'specs' => array_slice($p->specs, 0, 4, true),
+            'tags' => $p->tags,
+        ];
     }
 
     /** @return array<string, mixed> */
