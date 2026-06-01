@@ -10,6 +10,15 @@
 
 ## Шаги
 
+### Если модуль не виден в «Модули» или ссылка `install=Y` ничего не делает
+
+1. Загрузите файлы модуля на сервер (см. ниже).
+2. Войдите в админку Bitrix под администратором.
+3. Откройте в браузере: **`/local/modules/draxter.aichat/install/setup.php`**
+4. Нажмите кнопку **«Установить draxter.aichat»**.
+
+Прямая ссылка `module_admin.php?id=draxter.aichat&install=Y` без POST и `sessid` на новых версиях Bitrix часто **не запускает** установку — это нормально.
+
 1. Скопируйте в корень сайта:
    - `local/modules/draxter.aichat/`
    - `local/components/draxter/`

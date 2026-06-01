@@ -26,7 +26,7 @@ class draxter_aichat extends CModule
         $this->MODULE_DESCRIPTION = Loc::getMessage('DRAXTER_AICHAT_MODULE_DESC') ?: 'Виджет чата с подбором товаров';
     }
 
-    public function DoInstall(): void
+    public function DoInstall()
     {
         ModuleManager::registerModule($this->MODULE_ID);
         $this->installFiles();
@@ -35,7 +35,7 @@ class draxter_aichat extends CModule
         $this->installModuleRights();
     }
 
-    public function DoUninstall(): void
+    public function DoUninstall()
     {
         $this->uninstallEvents();
         $this->uninstallFiles();
@@ -107,7 +107,7 @@ class draxter_aichat extends CModule
         return true;
     }
 
-    private function installOptions(): void
+    private function installOptions()
     {
         global $draxter_aichat_default_option;
         include __DIR__ . '/../default_options.php';
